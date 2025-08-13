@@ -1,0 +1,30 @@
+# Python cache and build files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.pkl.gz
+*.egg-info/
+build/
+dist/
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Render or deployment logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
