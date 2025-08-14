@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query
 import pandas as pd
 from functools import lru_cache
+from fastapi.middleware.cors import CORSMiddleware
 
 # PSGC API Metadata for Swagger UI
 app = FastAPI(
@@ -17,6 +18,16 @@ app = FastAPI(
     ),
     version="1.0.0"
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000",
+                   "https://fireburn553.github.io/psgc_frontend/"],  # Or specify your React app URL: ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 
 @lru_cache(maxsize=1)
 def load_data():
@@ -30,26 +41,53 @@ def load_data():
 df, code_to_name, code_to_level = load_data()
 
 def build_full_path(psgc_code: str) -> str:
-    """Build the full hierarchical path for a given PSGC code."""
+    """Builds hierarchical path for PSGC code.
+    Handles:
+    1. Regions without provinces
+    2. Cities with sub-municipalities
+    """
     psgc_code = str(psgc_code)
+    level = code_to_level.get(psgc_code)
     parts = []
 
-    region = next((name for code, name in code_to_name.items()
-                   if code.startswith(psgc_code[:2]) and code_to_level[code] == "Reg"), None)
+    # Region
+    region = next(
+        (name for code, name in code_to_name.items()
+         if code.startswith(psgc_code[:2]) and code_to_level[code] == "Reg"),
+        None
+    )
     if region:
         parts.append(region)
 
-    province = next((name for code, name in code_to_name.items()
-                     if code.startswith(psgc_code[:5]) and code_to_level[code] == "Prov"), None)
+    # Province (only if exists)
+    province = next(
+        (name for code, name in code_to_name.items()
+         if code.startswith(psgc_code[:5]) and code_to_level[code] == "Prov"),
+        None
+    )
     if province:
         parts.append(province)
 
-    city_mun = next((name for code, name in code_to_name.items()
-                     if code.startswith(psgc_code[:7]) and code_to_level[code] in ["City", "Mun"]), None)
+    # City or Municipality (parent of sub-muni or barangay)
+    city_mun = next(
+        (name for code, name in code_to_name.items()
+         if code.startswith(psgc_code[:7]) and code_to_level[code] in ["City", "Mun"]),
+        None
+    )
     if city_mun:
         parts.append(city_mun)
 
-    if code_to_level.get(psgc_code) == "Bgy":
+    # Sub-Municipality (if exists)
+    sub_mun = next(
+        (name for code, name in code_to_name.items()
+         if code.startswith(psgc_code[:9]) and code_to_level[code] == "SubMun"),
+        None
+    )
+    if sub_mun:
+        parts.append(sub_mun)
+
+    # Barangay (last level)
+    if level == "Bgy":
         parts.append(code_to_name.get(psgc_code))
 
     return " > ".join(parts)
@@ -78,13 +116,24 @@ def get_provinces(region_code: str = Query(None, description="Optional region PS
     return prov_df.to_dict(orient="records")
 
 
-@app.get("/api/citi_muni", summary="List cities and municipalities (optional filter by province code)")
-def get_cities_municipalities(province_code: str = Query(None, description="Optional province PSGC code to filter")):
-    """Retrieve cities and municipalities. Optionally filter by a province PSGC code."""
+@app.get("/api/citi_muni", summary="List cities and municipalities (optional filter by province or region code)")
+def get_cities_municipalities(
+    province_code: str = Query(None, description="Optional province PSGC code to filter"),
+    region_code: str = Query(None, description="Optional region PSGC code to filter")
+):
+    """Retrieve cities and municipalities. 
+    If province_code is given, filter by province.
+    If region_code is given, filter by region.
+    """
     if province_code:
         citi_muni_df = df[
             df["Geographic Level"].isin(["City", "Mun"]) &
             (df["10-digit PSGC"].astype(str).str.startswith(province_code[:5]))
+        ][["10-digit PSGC", "Name"]]
+    elif region_code:
+        citi_muni_df = df[
+            df["Geographic Level"].isin(["City", "Mun"]) &
+            (df["10-digit PSGC"].astype(str).str.startswith(region_code[:2]))
         ][["10-digit PSGC", "Name"]]
     else:
         citi_muni_df = df[df["Geographic Level"].isin(["City", "Mun"])][["10-digit PSGC", "Name"]]
@@ -92,6 +141,16 @@ def get_cities_municipalities(province_code: str = Query(None, description="Opti
     citi_muni_df["full_path"] = citi_muni_df["10-digit PSGC"].astype(str).apply(build_full_path)
     return citi_muni_df.to_dict(orient="records")
 
+@app.get("/api/sub_muni", summary="List sub-municipalities (optional filter by city code)")
+def get_sub_municipalities(city_code: str = Query(..., description="City PSGC code to filter")):
+    """Retrieve sub-municipalities for a given city."""
+    submun_df = df[
+        (df["Geographic Level"] == "SubMun") &
+        (df["10-digit PSGC"].astype(str).str.startswith(city_code[:5]))
+    ][["10-digit PSGC", "Name"]]
+
+    submun_df["full_path"] = submun_df["10-digit PSGC"].astype(str).apply(build_full_path)
+    return submun_df.to_dict(orient="records")
 
 @app.get("/api/barangays", summary="List barangays (optional filter by municipality code)")
 def get_barangays(municipality_code: str = Query(None, description="Optional municipality PSGC code to filter")):
