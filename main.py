@@ -21,7 +21,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000",
-                   "https://fireburn553.github.io/psgc_frontend/"],  # Or specify your React app URL: ["http://localhost:3000"]
+                   "https://fireburn553.github.io"],  # Or specify your React app URL: ["http://localhost:3000"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
