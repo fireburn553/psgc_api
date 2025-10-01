@@ -21,7 +21,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000",
-                   "https://fireburn553.github.io"],  # Or specify your React app URL: ["http://localhost:3000"]
+                   "https://fireburn553.github.io", "http://localhost:5173"],  # Or specify your React app URL: ["http://localhost:3000"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,7 +62,7 @@ def build_full_path(psgc_code: str) -> str:
     # Province (only if exists)
     province = next(
         (name for code, name in code_to_name.items()
-         if code.startswith(psgc_code[:5]) and code_to_level[code] == "Prov"),
+         if code.startswith(psgc_code[:4]) and code_to_level[code] == "Prov"),
         None
     )
     if province:
@@ -71,7 +71,7 @@ def build_full_path(psgc_code: str) -> str:
     # City or Municipality (parent of sub-muni or barangay)
     city_mun = next(
         (name for code, name in code_to_name.items()
-         if code.startswith(psgc_code[:7]) and code_to_level[code] in ["City", "Mun"]),
+         if code.startswith(psgc_code[:6]) and code_to_level[code] in ["City", "Mun"]),
         None
     )
     if city_mun:
@@ -80,7 +80,7 @@ def build_full_path(psgc_code: str) -> str:
     # Sub-Municipality (if exists)
     sub_mun = next(
         (name for code, name in code_to_name.items()
-         if code.startswith(psgc_code[:9]) and code_to_level[code] == "SubMun"),
+         if code.startswith(psgc_code[:7]) and code_to_level[code] == "SubMun"),
         None
     )
     if sub_mun:
@@ -128,7 +128,7 @@ def get_cities_municipalities(
     if province_code:
         citi_muni_df = df[
             df["Geographic Level"].isin(["City", "Mun"]) &
-            (df["10-digit PSGC"].astype(str).str.startswith(province_code[:5]))
+            (df["10-digit PSGC"].astype(str).str.startswith(province_code[:4]))
         ][["10-digit PSGC", "Name"]]
     elif region_code:
         citi_muni_df = df[
@@ -146,7 +146,7 @@ def get_sub_municipalities(city_code: str = Query(..., description="City PSGC co
     """Retrieve sub-municipalities for a given city."""
     submun_df = df[
         (df["Geographic Level"] == "SubMun") &
-        (df["10-digit PSGC"].astype(str).str.startswith(city_code[:5]))
+        (df["10-digit PSGC"].astype(str).str.startswith(city_code[:4]))
     ][["10-digit PSGC", "Name"]]
 
     submun_df["full_path"] = submun_df["10-digit PSGC"].astype(str).apply(build_full_path)
