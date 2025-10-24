@@ -21,7 +21,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000",
-                   "https://fireburn553.github.io", "http://localhost:5173"],  # Or specify your React app URL: ["http://localhost:3000"]
+                   "https://fireburn553.github.io", "http://localhost:5173","https://ss-dashboard-two.vercel.app"],  # Or specify your React app URL: ["http://localhost:3000"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -146,7 +146,7 @@ def get_sub_municipalities(city_code: str = Query(..., description="City PSGC co
     """Retrieve sub-municipalities for a given city."""
     submun_df = df[
         (df["Geographic Level"] == "SubMun") &
-        (df["10-digit PSGC"].astype(str).str.startswith(city_code[:4]))
+        (df["10-digit PSGC"].astype(str).str.startswith(city_code[:6])) # ✅ Corrected to 6 digits
     ][["10-digit PSGC", "Name"]]
 
     submun_df["full_path"] = submun_df["10-digit PSGC"].astype(str).apply(build_full_path)
